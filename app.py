@@ -186,7 +186,7 @@ with left_panel:
     if df_raw is not None and not df_raw.empty and len(df_raw) > 100:
         df_5m = df_raw.copy()
         df_15m = df_raw.resample('15Min').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
-        df_1h = df_raw.resample('1H').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+        df_1h = df_raw.resample('1h').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
         
         # Calculate Vectors & ADX
         v5, v15, v1h = analyze_triple_timeframe_trend(df_5m, df_15m, df_1h)
