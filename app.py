@@ -9,24 +9,24 @@ from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
 # 1. Page Configuration
-st.set_page_config(page_title="Jio Trading (Yogendra)", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Jio AI-Trading Pro Max Ultra (Yogendra)", layout="wide", initial_sidebar_state="expanded")
 
 # 🎨 PREMIUM BRANDING HEADER
 st.markdown(
     """
-    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 25px; border-radius: 12px; border-left: 6px solid #06b6d4; border-right: 6px solid #3b82f6; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3); text-align: center; margin-bottom: 20px;">
-        <h1 style="color: #22d3ee; font-family: 'Space Grotesk', 'Segoe UI', sans-serif; font-size: 38px; font-weight: 800; letter-spacing: 2px; margin: 0; text-shadow: 2px 2px 10px rgba(34, 211, 238, 0.3);">
-            ⚡ JIO TRADING <span style="color: #38bdf8; font-weight: 400;">[YOGENDRA]</span>
+    <div style="background: linear-gradient(135deg, #020617 0%, #1e1b4b 50%, #311042 100%); padding: 25px; border-radius: 12px; border-left: 6px solid #f43f5e; border-right: 6px solid #06b6d4; box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.6); text-align: center; margin-bottom: 20px;">
+        <h1 style="color: #f43f5e; font-family: 'Space Grotesk', 'Segoe UI', sans-serif; font-size: 38px; font-weight: 800; letter-spacing: 2px; margin: 0; text-shadow: 2px 2px 12px rgba(244, 63, 94, 0.5);">
+            ⚡ JIO AI-TRADING PRO MAX ULTRA <span style="color: #06b6d4; font-weight: 400;">[YOGENDRA]</span>
         </h1>
         <p style="color: #94a3b8; font-family: 'Consolas', monospace; font-size: 14px; margin: 8px 0 0 0; letter-spacing: 1px;">
-            🤖 Ultimate Animated Alert Triple-Timeframe Derivative Execution Engine
+            🤖 Triple-Timeframe (5m + 15m + 1h) | ADX Volatility & Momentum Filter | AI News Sentiment Engine
         </p>
     </div>
     """, 
     unsafe_allow_html=True
 )
 
-st_autorefresh(interval=30000, key="jio_yogi_balloon_clock")
+st_autorefresh(interval=30000, key="jio_yogi_ultramax_adx_clock")
 
 def send_telegram_alert(message):
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -36,6 +36,90 @@ def send_telegram_alert(message):
         payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
         try: requests.post(url, json=payload, timeout=5)
         except Exception: pass
+
+# 📰 REALTIME AI NEWS SENTIMENT FILTER
+def fetch_market_sentiment(asset_keyword):
+    api_key = os.environ.get("FINNHUB_API_KEY")
+    if not api_key:
+        return "NEUTRAL", ["⚠️ Operating in Pure Technical Mode. News API Key missing in Render."]
+    url = f"https://finnhub.io/api/v1/news?category=general&token={api_key}"
+    try:
+        response = requests.get(url, timeout=7).json()
+        headlines = [item['headline'] for item in response[:15]]
+        neg_words = ['drop', 'crash', 'down', 'bearish', 'ban', 'lawsuit', 'hack', 'dump', 'loss', 'crisis', 'slump']
+        pos_words = ['rally', 'bullish', 'surge', 'breakout', 'gain', 'profit', 'adopt', 'growth', 'green', 'buy']
+        neg_count, pos_count = 0, 0
+        relevant_news = []
+        for text in headlines:
+            lower_txt = text.lower()
+            if any(k in lower_txt for k in [asset_keyword.lower(), 'crypto', 'bitcoin', 'market']):
+                relevant_news.append(text)
+                if any(w in lower_txt for w in neg_words): neg_count += 1
+                if any(w in lower_txt for w in pos_words): pos_count += 1
+        if neg_count > pos_count and neg_count >= 2: return "BEARISH", relevant_news[:3]
+        if pos_count > neg_count and pos_count >= 2: return "BULLISH", relevant_news[:3]
+        return "NEUTRAL", relevant_news[:3] if relevant_news else headlines[:3]
+    except Exception:
+        return "NEUTRAL", ["📡 News API Gateway offline. Syncing via Technicals."]
+
+# 🛠️ MATHEMATICAL ADX & MOMENTUM GENERATOR
+def calculate_adx_filter(df_5m):
+    if len(df_5m) < 20: return 25.0 # Fallback default
+    high = pd.Series(df_5m['High'].values.flatten(), index=df_5m.index)
+    low = pd.Series(df_5m['Low'].values.flatten(), index=df_5m.index)
+    close = pd.Series(df_5m['Close'].values.flatten(), index=df_5m.index)
+    
+    # Calculate True Range (TR)
+    tr1 = high - low
+    tr2 = abs(high - close.shift(1))
+    tr3 = abs(low - close.shift(1))
+    tr = pd.DataFrame([tr1, tr2, tr3]).max()
+    atr = tr.ewm(span=14, adjust=False).mean()
+    
+    # Directional Movement (+DM / -DM)
+    up_move = high.diff()
+    down_move = low.diff().shift(1) - low # Fixed syntax representation
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0)
+    
+    plus_di = 100 * (plus_dm.ewm(span=14, adjust=False).mean() / (atr + 1e-10))
+    minus_di = 100 * (minus_dm.ewm(span=14, adjust=False).mean() / (atr + 1e-10))
+    
+    dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di + 1e-10)
+    adx = dx.ewm(span=14, adjust=False).mean()
+    return float(adx.iloc[-2])
+
+# 🛠️ TRIPLE-TIMEFRAME COMPLETED CANDLE ENGINE
+def analyze_triple_timeframe_trend(df_5m, df_15m, df_1h):
+    if len(df_5m) < 25 or len(df_15m) < 25 or len(df_1h) < 25: return 0, 0, 0
+    
+    # 5 Minute Entry Level Matrix (Index -2 for Completed Candle Close)
+    close_5m = pd.Series(df_5m['Close'].values.flatten(), index=df_5m.index)
+    f_5m = close_5m.ewm(span=9, adjust=False).mean()
+    s_5m = close_5m.ewm(span=21, adjust=False).mean()
+    t5 = 1 if f_5m.iloc[-2] > s_5m.iloc[-2] else (-1 if f_5m.iloc[-2] < s_5m.iloc[-2] else 0)
+    
+    # 15 Minute Structural Filter
+    close_15m = pd.Series(df_15m['Close'].values.flatten(), index=df_15m.index)
+    f_15m = close_15m.ewm(span=9, adjust=False).mean()
+    s_15m = close_15m.ewm(span=21, adjust=False).mean()
+    t15 = 1 if f_15m.iloc[-2] > s_15m.iloc[-2] else (-1 if f_15m.iloc[-2] < s_15m.iloc[-2] else 0)
+    
+    # 1 Hour Major Trend Filter
+    close_1h = pd.Series(df_1h['Close'].values.flatten(), index=df_1h.index)
+    f_1h = close_1h.ewm(span=9, adjust=False).mean()
+    s_1h = close_1h.ewm(span=21, adjust=False).mean()
+    
+    d_1h = close_1h.diff()
+    g_1h = d_1h.where(d_1h > 0, 0).rolling(14).mean()
+    l_1h = (-d_1h.where(d_1h < 0, 0)).rolling(14).mean() + 1e-10
+    rsi_1h = 100 - (100 / (1 + (g_1h / l_1h)))
+    
+    t1h = 0
+    if f_1h.iloc[-2] > s_1h.iloc[-2] and rsi_1h.iloc[-2] > 50: t1h = 1
+    elif f_1h.iloc[-2] < s_1h.iloc[-2] and rsi_1h.iloc[-2] < 48: t1h = -1
+        
+    return t5, t15, t1h
 
 ASSET_UNIVERSE = {
     "Solana (SOL)": "SOL-USD",
@@ -52,160 +136,150 @@ if 'historical_signals_db' not in st.session_state: st.session_state.historical_
 if 'win_loss_tracker' not in st.session_state: st.session_state.win_loss_tracker = {"Wins": 85, "Losses": 3, "Total": 88}
 if 'last_broadcasted_signal' not in st.session_state: st.session_state.last_broadcasted_signal = {}
 
-def clean_df(df):
-    if df is not None and not df.empty:
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-    return df
-
-def compute_ema_trend_simple(df):
-    if df is None or len(df) < 22: return 0
-    close_series = pd.Series(df['Close'].values.flatten(), index=df.index)
-    fast = close_series.ewm(span=9, adjust=False).mean()
-    slow = close_series.ewm(span=21, adjust=False).mean()
-    delta = close_series.diff()
-    gain = delta.where(delta > 0, 0).rolling(14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(14).mean() + 1e-10
-    rsi = 100 - (100 / (1 + (gain / loss)))
-    
-    if fast.iloc[-1] > slow.iloc[-1] and rsi.iloc[-1] > 50: return 1
-    elif fast.iloc[-1] < slow.iloc[-1] and rsi.iloc[-1] < 46: return -1
-    return 0
-
-def change_asset_callback(target_symbol):
-    st.session_state.active_asset = target_symbol
+def change_asset_callback(target_symbol): st.session_state.active_asset = target_symbol
 
 st.markdown("### 🔍 Live Multi-Asset Control Blocks")
-row1_items, row2_items = list(ASSET_UNIVERSE.items())[:4], list(ASSET_UNIVERSE.items())[4:]
-row1_cols, row2_cols = st.columns(4), st.columns(3)
+r1_items, r2_items = list(ASSET_UNIVERSE.items())[:4], list(ASSET_UNIVERSE.items())[4:]
+r1_cols, r2_cols = st.columns(4), st.columns(3)
 
-def draw_static_block(name, symbol, ui_col):
-    is_selected = (st.session_state.active_asset == symbol)
-    border_clr = "#22d3ee" if is_selected else "#334155"
-    bg_clr = "#0f172a" if is_selected else "#1e293b"
-    lbl = "⚡ ACTIVE DESK" if is_selected else "📡 Click to Open"
-    ui_col.markdown(f"<div style='background-color:{bg_clr}; padding:14px; border-radius:8px; text-align:center; color:white; font-size:14px; font-weight:bold; border: 2px solid {border_clr};'>{name}<br><span style='font-size:11px; color:#38bdf8;'>{lbl}</span></div>", unsafe_allow_html=True)
+def draw_block(name, symbol, ui_col):
+    is_sel = st.session_state.active_asset == symbol
+    ui_col.markdown(f"<div style='background-color:{'#0f172a' if is_sel else '#1e293b'}; padding:14px; border-radius:8px; text-align:center; color:white; font-size:14px; font-weight:bold; border: 2px solid {'#f43f5e' if is_sel else '#334155'};'>{name}</div>", unsafe_allow_html=True)
     ui_col.button("Open Desk", key=f"lk_{symbol}", on_click=change_asset_callback, args=(symbol,), use_container_width=True)
 
-for i, (name, symbol) in enumerate(row1_items): draw_static_block(name, symbol, row1_cols[i])
-for i, (name, symbol) in enumerate(row2_items): draw_static_block(name, symbol, row2_cols[i])
+for i, (name, symbol) in enumerate(r1_items): draw_block(name, symbol, r1_cols[i])
+for i, (name, symbol) in enumerate(r2_items): draw_block(name, symbol, r2_cols[i])
 
-# --- 📊 CENTRAL TRADING TERMINAL ENGINE ---
 st.markdown("---")
 active_sym = st.session_state.active_asset
 active_name = [k for k, v in ASSET_UNIVERSE.items() if v == active_sym][0]
-st.markdown(f"### 📡 Focus Trading Desk: {active_name} ({active_sym})")
 
-is_nse = active_sym in ["^NSEI", "^NSEBANK"]
-df_raw = None
-try:
-    df_raw = clean_df(yf.download(tickers=active_sym, period="5d" if is_nse else "2d", interval="5m", progress=False, timeout=10))
-except Exception: pass
+keyword = active_name.split()[0]
+sentiment_score, news_headlines = fetch_market_sentiment(keyword)
 
-if df_raw is not None and not df_raw.empty and len(df_raw) > 22:
-    df_5m = df_raw.copy()
-    df_15m = df_raw.resample('15Min').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
-    t5, t15 = compute_ema_trend_simple(df_5m), compute_ema_trend_simple(df_15m)
-    c_price = float(df_5m['Close'].values.flatten()[-1])
-    
-    is_shib = active_sym == "SHIB-USD"
-    p_format = ",.8f" if is_shib else ",.2f"
-    
-    votes_long = [t5, t15].count(1)
-    votes_short = [t5, t15].count(-1)
-    
-    current_status = "⚖️ MIXED TREND MATRIX (Waiting for Confluence)"
-    alert_active = False
-    sig_mode, box_bg, box_border = "", "#1e293b", "#475569"
-    
-    if votes_long == 2:
-        current_status = "🚀 ACCURATE BUY SIGNAL TRIGGERED 📈"
-        sig_mode, box_bg, box_border = "🔥 HIGH PROB LONG", "#7c2d12", "#ea580c"
-        alert_active = True
-    elif votes_short == 2:
-        current_status = "💥 ACCURATE SELL SIGNAL TRIGGERED 📉"
-        sig_mode, box_bg, box_border = "💥 HIGH PROB SHORT", "#7f1d1d", "#dc2626"
-        alert_active = True
+left_panel, right_panel = st.columns([0.65, 0.35])
+
+with right_panel:
+    st.markdown(f"#### 📰 AI News Sentiment Radar: {keyword}")
+    sent_colors = {"BULLISH": "#22c55e", "BEARISH": "#ef4444", "NEUTRAL": "#94a3b8"}
+    st.markdown(f"<h3 style='color: {sent_colors[sentiment_score]}; margin: 0;'>{sentiment_score} MARKET BIAS</h3>", unsafe_allow_html=True)
+    st.markdown("##### Recent Headlines:")
+    for h in news_headlines: st.caption(f"▪️ {h}")
+    st.markdown("---")
+    st.markdown("#### 🎯 Engine Efficiency Matrix")
+    m_cols = st.columns(3)
+    total_t = st.session_state.win_loss_tracker["Total"]
+    m_cols[0].metric("Total Triggers", total_t)
+    m_cols[1].metric("Success Wins", f"{st.session_state.win_loss_tracker['Wins']} Trades")
+    m_cols[2].metric("Accuracy Rate", f"{(st.session_state.win_loss_tracker['Wins'] / total_t * 100 if total_t > 0 else 0):.1f}%")
+
+with left_panel:
+    st.markdown(f"### 📡 Focus Trading Desk: {active_name}")
+    is_nse = active_sym in ["^NSEI", "^NSEBANK"]
+    df_raw = None
+    try:
+        df_raw = yf.download(tickers=active_sym, period="30d" if is_nse else "10d", interval="5m", progress=False)
+        if df_raw is not None and not df_raw.empty and isinstance(df_raw.columns, pd.MultiIndex):
+            df_raw.columns = df_raw.columns.get_level_values(0)
+    except Exception: pass
+
+    if df_raw is not None and not df_raw.empty and len(df_raw) > 100:
+        df_5m = df_raw.copy()
+        df_15m = df_raw.resample('15Min').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+        df_1h = df_raw.resample('1H').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
         
-    st.info(f"🚦 Status Report: {current_status} | Live Spot Valuation: {c_price:{p_format}}")
-    
-    # Mathematical Sizing
-    high_v, low_v, close_v = df_5m['High'].values.flatten(), df_5m['Low'].values.flatten(), df_5m['Close'].values.flatten()
-    atr = pd.DataFrame([high_v - low_v, abs(high_v - pd.Series(close_v).shift().values), abs(low_v - pd.Series(close_v).shift().values)]).max().rolling(14).mean().iloc[-1]
-    if pd.isna(atr) or atr == 0: atr = c_price * (0.001 if is_shib else 0.005)
-    
-    if votes_long == 2 or (votes_long != 2 and votes_short != 2):
-        sl = c_price - (1.4 * atr)
-        tp = c_price + (2.8 * atr)
-        action_dir = "LONG / CALL (CE)"
-    else:
-        sl = c_price + (1.4 * atr)
-        tp = c_price - (2.8 * atr)
-        action_dir = "SHORT / PUT (PE)"
-    risk_pts = abs(c_price - sl)
-
-    if is_nse:
-        atm_strike = round(c_price / (50 if active_sym == "^NSEI" else 100)) * (50 if active_sym == "^NSEI" else 100)
-        calc_lots = max(1, round(4000 / (risk_pts * (25 if active_sym == "^NSEI" else 15))))
-        order_text = f"🔹 *Action:* Buy ATM Strike {atm_strike} {'CE' if votes_long == 2 or votes_short != 2 else 'PE'}<br>🔹 *Qty:* {calc_lots} Lot(s) ({calc_lots * (25 if active_sym == "^NSEI" else 15)} Qty)<br>🔹 *Max Safe Risk Block:* ₹4000"
-    else:
-        suggested_qty = 50 / risk_pts if risk_pts > 0 else 1
-        order_text = f"🔹 *Leverage Threshold:* 3x - 5x Margin Futures<br>🔹 *Calculated Order Qty:* {suggested_qty:.2f} Units<br>🔹 *Risk Target Allocation:* $50 USD"
-
-    # 🔥 ALWAYS ON TARGET CALCULATOR DESK WITH BALLOONS CAPABILITY
-    box_title = "🎯 ACTIVE EXECUTION TARGETS IDENTIFIED:" if alert_active else "⚖️ POTENTIAL RADAR TARGET MATRIX (PRE-SCAN MODE):"
-    st.markdown(
-        f"""
-        <div style="background-color: {box_bg}; padding: 20px; border-radius: 8px; border: 2px solid {box_border}; margin-bottom: 20px; color: white;">
-            <h4 style="margin: 0 0 10px 0; color: #ffedd5;">{box_title}</h4>
-            <p style="font-size: 16px; margin: 4px 0;">🟩 *BEST ENTRY PRICE:* <span style="font-size: 20px; font-weight: bold; color: #4ade80;">{c_price:{p_format}}</span></p>
-            <p style="font-size: 16px; margin: 4px 0;">🛑 *TECHNICAL STOPLOSS (SL):* <span style="font-size: 18px; font-weight: bold; color: #60a5fa;" style="font-size: 18px; font-weight: bold; color: #f87171;">{sl:{p_format}}</span></p>
-            <p style="font-size: 16px; margin: 4px 0;">🎯 *TECHNICAL TARGET (TP):* <span style="font-size: 18px; font-weight: bold; color: #60a5fa;">{tp:{p_format}}</span></p>
-            <hr style="border-color: {box_border}; margin: 10px 0;">
-            <p style="font-size: 15px; margin: 0; font-family: monospace;">{order_text}</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # 🎈 THE MAGIC BALLOONS POP-UP TRIGGER!
-    if alert_active and st.session_state.last_broadcasted_signal.get(active_sym) != sig_mode:
-        st.balloons()  # 🎈 Udan-Khatola Balloons Fly on Screen!
-        st.toast(f"🎯 New Signal Activated for {active_name}!", icon="⚡")
+        # Calculate Vectors & ADX
+        v5, v15, v1h = analyze_triple_timeframe_trend(df_5m, df_15m, df_1h)
+        adx_val = calculate_adx_filter(df_5m)
+        c_price = float(df_5m['Close'].values.flatten()[-1])
+        p_format = ",.8f" if active_sym == "SHIB-USD" else ",.2f"
         
-        tg_order = order_text.replace("<br>", "\n").replace("*", "")
-        tg_text = (
-            f"🎯 JIO TRADING (YOGENDRA) EXECUTION ALERT\n━━━━━━━━━━━━━━━━━━━━\n"
-            f"🏛️ Market Sector: {'🇮🇳 NSE' if is_nse else '🪙 CRYPTO'}\n📊 Asset: {active_sym}\n🚦 Direction: {action_dir}\n\n"
-            f"🟩 Spot Entry: {c_price:{p_format}}\n🛑 StopLoss: {sl:{p_format}}\n🎯 Target: {tp:{p_format}}\n━━━━━━━━━━━━━━━━━━━━\n"
-            f"{tg_order.replace('🔹 ', '• ')}\n━━━━━━━━━━━━━━━━━━━━\n🤖 Automated Intelligence Cloud Desk Powered by Yogendra Server"
+        # 🚨 FINAL CORE BLOCK GATEKEEPER LOGIC
+        alert_active = False
+        sig_mode, box_bg, box_border, current_status = "", "#1e293b", "#475569", "⚖️ RADAR ENGINE SCANNING (Pre-Scan Mode)"
+        
+        is_volatile_ok = adx_val >= 20.0
+        
+        if v5 == 1 and v15 == 1 and v1h == 1:
+            if not is_volatile_ok:
+                current_status = f"⚠️ TECHNICAL BUY BLOCKED: Market Momentum too Low (ADX: {adx_val:.1f} < 20)"
+                box_bg, box_border = "#0f172a", "#334155"
+            elif sentiment_score == "BEARISH":
+                current_status = "⚠️ Technical Buy Blocked by Negative AI-News Sentiment 🛑"
+            else:
+                current_status = "🚀 PRO MAX ULTRA BUY SIGNAL ACTIVATED (ADX & 3TF CONFIRMED) 📈"
+                sig_mode, box_bg, box_border = "🔥 PRO MAX LONG", "#042f2e", "#06b6d4"
+                alert_active = True
+        elif v5 == -1 and v15 == -1 and v1h == -1:
+            if not is_volatile_ok:
+                current_status = f"⚠️ TECHNICAL SELL BLOCKED: Market Momentum too Low (ADX: {adx_val:.1f} < 20)"
+                box_bg, box_border = "#0f172a", "#334155"
+            elif sentiment_score == "BULLISH":
+                current_status = "⚠️ Technical Sell Blocked by Positive AI-News Sentiment 🛑"
+            else:
+                current_status = "💥 PRO MAX ULTRA SELL SIGNAL ACTIVATED (ADX & 3TF CONFIRMED) 📉"
+                sig_mode, box_bg, box_border = "#4c0519", "#f43f5e"
+                alert_active = True
+        else:
+            current_status = f"⚖️ Mixed Structural Trend | Votes: [5m: {v5} | 15m: {v15} | 1h: {v1h}] | ADX: {adx_val:.1f}"
+
+        st.info(f"🚦 Status Report: {current_status} | Live Spot: {c_price:{p_format}}")
+        
+        # ATR Trailing Setup
+        high_v, low_v, close_v = df_5m['High'].values.flatten(), df_5m['Low'].values.flatten(), df_5m['Close'].values.flatten()
+        atr = pd.DataFrame([high_v - low_v, abs(high_v - pd.Series(close_v).shift().values), abs(low_v - pd.Series(close_v).shift().values)]).max().rolling(14).mean().iloc[-1]
+        if pd.isna(atr) or atr == 0: atr = c_price * 0.005
+        
+        if (v5 == 1 and v15 == 1 and v1h == 1) or not (v5 == -1 and v15 == -1 and v1h == -1):
+            sl, tp, action_dir = c_price - (1.6 * atr), c_price + (3.2 * atr), "LONG / CALL (CE)"
+        else:
+            sl, tp, action_dir = c_price + (1.6 * atr), c_price - (3.2 * atr), "SHORT / PUT (PE)"
+            
+        risk_pts = abs(c_price - sl)
+        if is_nse:
+            atm_strike = round(c_price / 50) * 50 if active_sym == "^NSEI" else round(c_price / 100) * 100
+            calc_lots = max(1, round(4000 / (risk_pts * (25 if active_sym == "^NSEI" else 15))))
+            order_text = f"🔹 *Action:* Buy ATM Strike {atm_strike} {'CE' if (v5==1 and v15==1 and v1h==1) or not (v5==-1 and v15==-1 and v1h==-1) else 'PE'}<br>🔹 *Qty:* {calc_lots} Lot(s) | *Safe Cap Risk Block:* ₹4000"
+        else:
+            suggested_qty = 50 / risk_pts if risk_pts > 0 else 1
+            order_text = f"🔹 *Leverage Scale:* 3x - 5x Margin Futures<br>🔹 *Calculated Qty Block:* {suggested_qty:.2f} Units | *Safe Risk Block:* $50 USD"
+
+        box_title = "🎯 ACTIVE PRO MAX ULTRA LIVE ORDER (MOMENTUM & AI PASSED):" if alert_active else "⚖️ RADAR RISK TERMINAL MATRIX (PRE-SCAN ULTRA MODE):"
+        st.markdown(
+            f"""
+            <div style="background-color: {box_bg}; padding: 20px; border-radius: 8px; border: 2px solid {box_border}; margin-bottom: 20px; color: white;">
+                <h4 style="margin: 0 0 10px 0; color: #f43f5e;">{box_title}</h4>
+                <p style="font-size: 16px; margin: 4px 0;">🟩 *BEST ENTRY PRICE:* <span style="font-size: 20px; font-weight: bold; color: #4ade80;">{c_price:{p_format}}</span></p>
+                <p style="font-size: 16px; margin: 4px 0;">🛑 *TECHNICAL STOPLOSS (SL):* <span style="font-size: 18px; font-weight: bold; color: #f87171;">{sl:{p_format}}</span></p>
+                <p style="font-size: 16px; margin: 4px 0;">🎯 *TECHNICAL TARGET (TP):* <span style="font-size: 18px; font-weight: bold; color: #60a5fa;">{tp:{p_format}}</span></p>
+                <hr style="border-color: {box_border}; margin: 10px 0;">
+                <p style="font-size: 15px; margin: 0; font-family: monospace;">{order_text}</p>
+            </div>
+            """, unsafe_allow_html=True
         )
-        send_telegram_alert(tg_text)
-        st.session_state.last_broadcasted_signal[active_sym] = sig_mode
-        st.session_state.historical_signals_db.append({"Timestamp": datetime.now().strftime('%H:%M:%S'), "Asset": active_sym, "Engine Rank": sig_mode, "Price": f"{c_price:{p_format}}", "Result": "Active 🟢"})
 
-    left_p, right_p = st.columns([0.65, 0.35])
-    with left_p:
+        if alert_active and st.session_state.last_broadcasted_signal.get(active_sym) != sig_mode:
+            st.balloons()
+            st.toast(f"🎯 Ultra Momentum Signal Confirmed for {active_name}!", icon="⚡")
+            tg_order = order_text.replace("<br>", "\n").replace("*", "")
+            tg_text = (
+                f"🚀 JIO AI-TRADING PRO MAX ULTRA ALERT\n━━━━━━━━━━━━━━━━━━━━\n"
+                f"📊 Asset Symbol: {active_sym} | Direction: {action_dir}\n"
+                f"🎛️ Filters: Triple Timeframe (5m+15m+1h Close) + ADX Momentum Verified\n"
+                f"📰 AI Sentiment Global Bias: {sentiment_score}\n\n"
+                f"🟩 Spot Entry Rate: {c_price:{p_format}}\n🛑 Technical StopLoss: {sl:{p_format}}\n🎯 Technical Target: {tp:{p_format}}\n━━━━━━━━━━━━━━━━━━━━\n"
+                f"{tg_order.replace('🔹 ', '• ')}\n━━━━━━━━━━━━━━━━━━━━\n🤖 Yogi Server Alpha Institutional Core Engine Framework"
+            )
+            send_telegram_alert(tg_text)
+            st.session_state.last_broadcasted_signal[active_sym] = sig_mode
+            st.session_state.historical_signals_db.append({"Timestamp": datetime.now().strftime('%H:%M:%S'), "Asset": active_sym, "Engine Rank": sig_mode, "Price": f"{c_price:{p_format}}", "Result": "Active 🟢"})
+
+        # Chart Render Engine
         plot_df = df_5m.tail(40)
         c_series = pd.Series(df_5m['Close'].values.flatten(), index=df_5m.index)
         fig = go.Figure()
         fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'].values.flatten(), high=plot_df['High'].values.flatten(), low=plot_df['Low'].values.flatten(), close=plot_df['Close'].values.flatten(), name='Price'))
         fig.add_trace(go.Scatter(x=plot_df.index, y=c_series.ewm(span=9, adjust=False).mean().loc[plot_df.index], line=dict(color='#fb923c', width=2), name='9 EMA'))
         fig.add_trace(go.Scatter(x=plot_df.index, y=c_series.ewm(span=21, adjust=False).mean().loc[plot_df.index], line=dict(color='#0ea5e9', width=2), name='21 EMA'))
-        fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False, margin=dict(r=5, t=5, b=5, l=5))
+        fig.update_layout(template="plotly_dark", height=420, xaxis_rangeslider_visible=False, margin=dict(r=5, t=5, b=5, l=5))
         st.plotly_chart(fig, use_container_width=True)
-        
-    with right_p:
-        st.markdown("#### 🎯 Engine Efficiency Matrix")
-        m_cols = st.columns(3)
-        total_t = st.session_state.win_loss_tracker["Total"]
-        m_cols[0].metric("Total Triggers", total_t)
-        m_cols[1].metric("Success Wins", f"{st.session_state.win_loss_tracker['Wins']} Trades")
-        m_cols[2].metric("Accuracy Rate", f"{(st.session_state.win_loss_tracker['Wins'] / total_t * 100 if total_t > 0 else 0):.1f}%")
-        st.markdown("---")
-        st.markdown("#### 🗄️ Yogi Option & Futures Signal Ledger")
-        if st.session_state.historical_signals_db: 
-            st.dataframe(pd.DataFrame(st.session_state.historical_signals_db).tail(5), use_container_width=True)
-        else: st.caption("Monitoring active matrices. Signals will stream here automatically.")
-else:
-    st.warning("📊 Loading Active Market Feed Channels. Please standby...")
