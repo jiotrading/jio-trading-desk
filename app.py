@@ -19,14 +19,14 @@ st.markdown(
             ⚡ JIO AI-TRADING PRO MAX ULTRA <span style="color: #06b6d4; font-weight: 400;">[YOGENDRA]</span>
         </h1>
         <p style="color: #94a3b8; font-family: 'Consolas', monospace; font-size: 14px; margin: 8px 0 0 0; letter-spacing: 1px;">
-            🤖 Triple-Timeframe (5m + 15m + 1h) | ADX Volatility & Momentum Filter | AI News Sentiment Engine
+            🤖 Triple-Timeframe (5m + 15m + 1h) | ADX Volatility Filter | AI News Sentiment Engine
         </p>
     </div>
     """, 
     unsafe_allow_html=True
 )
 
-st_autorefresh(interval=30000, key="jio_yogi_ultramax_adx_clock")
+st_autorefresh(interval=30000, key="jio_yogi_ultramax_tablefixed_clock")
 
 def send_telegram_alert(message):
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -62,23 +62,21 @@ def fetch_market_sentiment(asset_keyword):
     except Exception:
         return "NEUTRAL", ["📡 News API Gateway offline. Syncing via Technicals."]
 
-# 🛠️ MATHEMATICAL ADX & MOMENTUM GENERATOR
+# 🛠️ MATHEMATICAL ADX GENERATOR
 def calculate_adx_filter(df_5m):
-    if len(df_5m) < 20: return 25.0 # Fallback default
+    if len(df_5m) < 20: return 25.0
     high = pd.Series(df_5m['High'].values.flatten(), index=df_5m.index)
     low = pd.Series(df_5m['Low'].values.flatten(), index=df_5m.index)
     close = pd.Series(df_5m['Close'].values.flatten(), index=df_5m.index)
     
-    # Calculate True Range (TR)
     tr1 = high - low
     tr2 = abs(high - close.shift(1))
     tr3 = abs(low - close.shift(1))
     tr = pd.DataFrame([tr1, tr2, tr3]).max()
     atr = tr.ewm(span=14, adjust=False).mean()
     
-    # Directional Movement (+DM / -DM)
     up_move = high.diff()
-    down_move = low.diff().shift(1) - low # Fixed syntax representation
+    down_move = low.diff().shift(1) - low
     plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0)
     minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0)
     
@@ -89,23 +87,20 @@ def calculate_adx_filter(df_5m):
     adx = dx.ewm(span=14, adjust=False).mean()
     return float(adx.iloc[-2])
 
-# 🛠️ TRIPLE-TIMEFRAME COMPLETED CANDLE ENGINE
+# 🛠️ TRIPLE-TIMEFRAME ENGINE
 def analyze_triple_timeframe_trend(df_5m, df_15m, df_1h):
     if len(df_5m) < 25 or len(df_15m) < 25 or len(df_1h) < 25: return 0, 0, 0
     
-    # 5 Minute Entry Level Matrix (Index -2 for Completed Candle Close)
     close_5m = pd.Series(df_5m['Close'].values.flatten(), index=df_5m.index)
     f_5m = close_5m.ewm(span=9, adjust=False).mean()
     s_5m = close_5m.ewm(span=21, adjust=False).mean()
     t5 = 1 if f_5m.iloc[-2] > s_5m.iloc[-2] else (-1 if f_5m.iloc[-2] < s_5m.iloc[-2] else 0)
     
-    # 15 Minute Structural Filter
     close_15m = pd.Series(df_15m['Close'].values.flatten(), index=df_15m.index)
     f_15m = close_15m.ewm(span=9, adjust=False).mean()
     s_15m = close_15m.ewm(span=21, adjust=False).mean()
     t15 = 1 if f_15m.iloc[-2] > s_15m.iloc[-2] else (-1 if f_15m.iloc[-2] < s_15m.iloc[-2] else 0)
     
-    # 1 Hour Major Trend Filter
     close_1h = pd.Series(df_1h['Close'].values.flatten(), index=df_1h.index)
     f_1h = close_1h.ewm(span=9, adjust=False).mean()
     s_1h = close_1h.ewm(span=21, adjust=False).mean()
@@ -188,13 +183,11 @@ with left_panel:
         df_15m = df_raw.resample('15Min').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
         df_1h = df_raw.resample('1h').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
         
-        # Calculate Vectors & ADX
         v5, v15, v1h = analyze_triple_timeframe_trend(df_5m, df_15m, df_1h)
         adx_val = calculate_adx_filter(df_5m)
         c_price = float(df_5m['Close'].values.flatten()[-1])
         p_format = ",.8f" if active_sym == "SHIB-USD" else ",.2f"
         
-        # 🚨 FINAL CORE BLOCK GATEKEEPER LOGIC
         alert_active = False
         sig_mode, box_bg, box_border, current_status = "", "#1e293b", "#475569", "⚖️ RADAR ENGINE SCANNING (Pre-Scan Mode)"
         
@@ -202,7 +195,7 @@ with left_panel:
         
         if v5 == 1 and v15 == 1 and v1h == 1:
             if not is_volatile_ok:
-                current_status = f"⚠️ TECHNICAL BUY BLOCKED: Market Momentum too Low (ADX: {adx_val:.1f} < 20)"
+                current_status = f"⚠️ TECHNICAL BUY BLOCKED: Low Momentum (ADX: {adx_val:.1f} < 20)"
                 box_bg, box_border = "#0f172a", "#334155"
             elif sentiment_score == "BEARISH":
                 current_status = "⚠️ Technical Buy Blocked by Negative AI-News Sentiment 🛑"
@@ -212,7 +205,7 @@ with left_panel:
                 alert_active = True
         elif v5 == -1 and v15 == -1 and v1h == -1:
             if not is_volatile_ok:
-                current_status = f"⚠️ TECHNICAL SELL BLOCKED: Market Momentum too Low (ADX: {adx_val:.1f} < 20)"
+                current_status = f"⚠️ TECHNICAL SELL BLOCKED: Low Momentum (ADX: {adx_val:.1f} < 20)"
                 box_bg, box_border = "#0f172a", "#334155"
             elif sentiment_score == "BULLISH":
                 current_status = "⚠️ Technical Sell Blocked by Positive AI-News Sentiment 🛑"
@@ -225,7 +218,6 @@ with left_panel:
 
         st.info(f"🚦 Status Report: {current_status} | Live Spot: {c_price:{p_format}}")
         
-        # ATR Trailing Setup
         high_v, low_v, close_v = df_5m['High'].values.flatten(), df_5m['Low'].values.flatten(), df_5m['Close'].values.flatten()
         atr = pd.DataFrame([high_v - low_v, abs(high_v - pd.Series(close_v).shift().values), abs(low_v - pd.Series(close_v).shift().values)]).max().rolling(14).mean().iloc[-1]
         if pd.isna(atr) or atr == 0: atr = c_price * 0.005
@@ -260,19 +252,27 @@ with left_panel:
 
         if alert_active and st.session_state.last_broadcasted_signal.get(active_sym) != sig_mode:
             st.balloons()
-            st.toast(f"🎯 Ultra Momentum Signal Confirmed for {active_name}!", icon="⚡")
+            st.toast(f"🎯 Ultra Momentum Signal Confirmed!", icon="⚡")
             tg_order = order_text.replace("<br>", "\n").replace("*", "")
             tg_text = (
                 f"🚀 JIO AI-TRADING PRO MAX ULTRA ALERT\n━━━━━━━━━━━━━━━━━━━━\n"
-                f"📊 Asset Symbol: {active_sym} | Direction: {action_dir}\n"
-                f"🎛️ Filters: Triple Timeframe (5m+15m+1h Close) + ADX Momentum Verified\n"
-                f"📰 AI Sentiment Global Bias: {sentiment_score}\n\n"
-                f"🟩 Spot Entry Rate: {c_price:{p_format}}\n🛑 Technical StopLoss: {sl:{p_format}}\n🎯 Technical Target: {tp:{p_format}}\n━━━━━━━━━━━━━━━━━━━━\n"
-                f"{tg_order.replace('🔹 ', '• ')}\n━━━━━━━━━━━━━━━━━━━━\n🤖 Yogi Server Alpha Institutional Core Engine Framework"
+                f"📊 Asset: {active_sym} | Direction: {action_dir}\n"
+                f"🎛️ Filters: Triple Timeframe (5m+15m+1h Close) + ADX Momentum\n"
+                f"🟩 Spot Entry Rate: {c_price:{p_format}}\n🛑 StopLoss: {sl:{p_format}}\n🎯 Target: {tp:{p_format}}\n━━━━━━━━━━━━━━━━━━━━\n"
+                f"🤖 Yogi Server Alpha Core Engine Framework"
             )
             send_telegram_alert(tg_text)
             st.session_state.last_broadcasted_signal[active_sym] = sig_mode
-            st.session_state.historical_signals_db.append({"Timestamp": datetime.now().strftime('%H:%M:%S'), "Asset": active_sym, "Engine Rank": sig_mode, "Price": f"{c_price:{p_format}}", "Result": "Active 🟢"})
+            
+            # 🚨 LIVE INJECT INTO LEDGER RECORD
+            new_record = {
+                "Timestamp": datetime.now().strftime('%H:%M:%S'),
+                "Asset": active_name,
+                "Engine Rank": "🔥 PRO MAX LONG" if action_dir == "LONG / CALL (CE)" else "💥 PRO MAX SHORT",
+                "Price": f"{c_price:{p_format}}",
+                "Result": "Active 🟢"
+            }
+            st.session_state.historical_signals_db.append(new_record)
 
         # Chart Render Engine
         plot_df = df_5m.tail(40)
@@ -283,3 +283,14 @@ with left_panel:
         fig.add_trace(go.Scatter(x=plot_df.index, y=c_series.ewm(span=21, adjust=False).mean().loc[plot_df.index], line=dict(color='#0ea5e9', width=2), name='21 EMA'))
         fig.update_layout(template="plotly_dark", height=420, xaxis_rangeslider_visible=False, margin=dict(r=5, t=5, b=5, l=5))
         st.plotly_chart(fig, use_container_width=True)
+
+# 🚨 THE MASTER RENDER BLOCK FOR YOGI SIGNAL LEDGER TABLE (FIXED!)
+st.markdown("---")
+if st.session_state.historical_signals_db:
+    st.markdown("### 📊 Yogi Option & Futures Signal Ledger")
+    ledger_df = pd.DataFrame(st.session_state.historical_signals_db)
+    st.dataframe(ledger_df, use_container_width=True)
+else:
+    # Fallback to show empty state beautifully so user knows it exists
+    st.markdown("### 📊 Yogi Option & Futures Signal Ledger")
+    st.caption("ℹ️ No active signals captured in this live session yet. Waiting for next Triple Confluence trigger...")
