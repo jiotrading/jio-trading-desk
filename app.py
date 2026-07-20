@@ -10,7 +10,7 @@ from streamlit_autorefresh import st_autorefresh
 # 1. Page Configuration & Cyberpunk Theme
 st.set_page_config(page_title="Jio Trading (Yogendra)", layout="wide", initial_sidebar_state="expanded")
 
-# 🎨 STYLISH & COLORFUL BRANDING HEADER
+# 🎨 STYLISH BRANDING HEADER
 st.markdown(
     """
     <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 25px; border-radius: 12px; border-left: 6px solid #06b6d4; border-right: 6px solid #3b82f6; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3); text-align: center; margin-bottom: 20px;">
@@ -18,7 +18,7 @@ st.markdown(
             ⚡ JIO TRADING <span style="color: #38bdf8; font-weight: 400;">[YOGENDRA]</span>
         </h1>
         <p style="color: #94a3b8; font-family: 'Consolas', monospace; font-size: 14px; margin: 8px 0 0 0; letter-spacing: 1px;">
-            🤖 Institutional Quad-Timeframe Confluence & Derivative Execution Engine
+            🤖 Optimized Triple-Timeframe Confluence & Derivative Execution Engine
         </p>
     </div>
     """, 
@@ -26,7 +26,7 @@ st.markdown(
 )
 
 # High-Speed Quantum Sync Ticker (2-Second Interval)
-refresh_count = st_autorefresh(interval=2000, key="jio_yogi_fixed_clock")
+refresh_count = st_autorefresh(interval=2000, key="jio_yogi_tri_clock")
 
 # 📲 Advanced Telegram Gateway
 def send_telegram_alert(message):
@@ -58,7 +58,6 @@ if 'win_loss_tracker' not in st.session_state: st.session_state.win_loss_tracker
 if 'last_broadcasted_signal' not in st.session_state: st.session_state.last_broadcasted_signal = {}
 
 def clean_df(df):
-    """Fixes Yahoo Finance MultiIndex column structure securely"""
     if df is not None and not df.empty:
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
@@ -66,7 +65,6 @@ def clean_df(df):
 
 def compute_ema_trend(df):
     if df is None or len(df) < 22: return 0
-    
     close_series = pd.Series(df['Close'].values.flatten(), index=df.index)
     fast = close_series.ewm(span=9, adjust=False).mean()
     slow = close_series.ewm(span=21, adjust=False).mean()
@@ -90,43 +88,45 @@ for idx, (name, symbol) in enumerate(ASSET_UNIVERSE.items()):
     is_nse = symbol in ["^NSEI", "^NSEBANK"]
     
     try:
-        # Optimized Period Logic to prevent blank data blocks from Yahoo Finance
         p_5m = "5d" if is_nse else "1d"
-        p_longer = "5d" if is_nse else "7d"
+        p_longer = "5d" if is_nse else "3d"
         
+        # Optimized: 3 Timeframes (5m, 15m, 1h) to completely fix the Render server load issue
         df_5m = clean_df(yf.download(tickers=symbol, period=p_5m, interval="5m", progress=False))
         df_15m = clean_df(yf.download(tickers=symbol, period=p_longer, interval="15m", progress=False))
-        df_30m = clean_df(yf.download(tickers=symbol, period=p_longer, interval="30m", progress=False))
-        df_1h = clean_df(yf.download(tickers=symbol, period="1mo" if is_nse else "7d", interval="1h", progress=False))
+        df_1h = clean_df(yf.download(tickers=symbol, period="1mo" if is_nse else "5d", interval="1h", progress=False))
         
         if df_5m is None or df_5m.empty:
-            status_cols[idx].warning(f"⚠️ {name.split(' ')[0]} Off-Hrs")
+            status_cols[idx].markdown(
+                f"<div style='background-color:#334155; padding:10px; border-radius:6px; text-align:center; color:#94a3b8; font-size:12px; font-weight:bold; border: 1px solid #475569;'>"
+                f"{name.split(' ')[0]}<br><span style='font-size:11px;'>Offline / Closed</span>"
+                f"</div>", unsafe_allow_html=True
+            )
             continue
             
         t5 = compute_ema_trend(df_5m)
         t15 = compute_ema_trend(df_15m)
-        t30 = compute_ema_trend(df_30m)
         t1h = compute_ema_trend(df_1h)
         
         c_price = float(df_5m['Close'].values.flatten()[-1])
         
-        votes_long = [t5, t15, t30, t1h].count(1)
-        votes_short = [t5, t15, t30, t1h].count(-1)
+        votes_long = [t5, t15, t1h].count(1)
+        votes_short = [t5, t15, t1h].count(-1)
         
-        status_ui = f"⚖️ MIXED ({max(votes_long, votes_short)}/4)"
+        status_ui = f"⚖️ MIXED ({max(votes_long, votes_short)}/3)"
         bg_color = "#1e293b"
         
-        if votes_long >= 3:
-            sig_type = "👑 ULTRA LONG (4/4)" if votes_long == 4 else "🔥 HIGH PROB LONG (3/4)"
-            status_ui = "🚀 BUY CONFIRM" if votes_long == 4 else "📈 BUY ACCEL"
-            bg_color = "#047857" if votes_long == 4 else "#065f46"
-            background_signals[symbol] = {"type": sig_type, "price": c_price, "df": df_5m, "score": f"{votes_long}/4"}
+        if votes_long >= 2:
+            sig_type = "👑 ULTRA LONG (3/3)" if votes_long == 3 else "🔥 HIGH PROB LONG (2/3)"
+            status_ui = "🚀 BUY CONFIRM" if votes_long == 3 else "📈 BUY ACCEL"
+            bg_color = "#047857" if votes_long == 3 else "#065f46"
+            background_signals[symbol] = {"type": sig_type, "price": c_price, "df": df_5m, "score": f"{votes_long}/3"}
             
-        elif votes_short >= 3:
-            sig_type = "👑 ULTRA SHORT (4/4)" if votes_short == 4 else "🔥 HIGH PROB SHORT (3/4)"
-            status_ui = "💥 SELL CONFIRM" if votes_short == 4 else "📉 SELL ACCEL"
-            bg_color = "#b91c1c" if votes_short == 4 else "#991b1b"
-            background_signals[symbol] = {"type": sig_type, "price": c_price, "df": df_5m, "score": f"{votes_short}/4"}
+        elif votes_short >= 2:
+            sig_type = "👑 ULTRA SHORT (3/3)" if votes_short == 3 else "🔥 HIGH PROB SHORT (2/3)"
+            status_ui = "💥 SELL CONFIRM" if votes_short == 3 else "📉 SELL ACCEL"
+            bg_color = "#b91c1c" if votes_short == 3 else "#991b1b"
+            background_signals[symbol] = {"type": sig_type, "price": c_price, "df": df_5m, "score": f"{votes_short}/3"}
             
         status_cols[idx].markdown(
             f"<div style='background-color:{bg_color}; padding:10px; border-radius:6px; text-align:center; color:white; font-size:12px; font-weight:bold; border: 1px solid #38bdf8;'>"
@@ -136,10 +136,9 @@ for idx, (name, symbol) in enumerate(ASSET_UNIVERSE.items()):
         
         if status_cols[idx].button("📡 Open Desk", key=f"view_{symbol}", use_container_width=True):
             st.session_state.active_asset = symbol
-            st.experimental_rerun()
             
     except Exception as e:
-        status_cols[idx].error(f"Sync Lag")
+        status_cols[idx].error("Sync Lag")
 
 # --- 📢 SYSTEM TELEGRAM BROADCAST WITH OPTIONS AND FUTURES INTELLIGENCE ---
 for sym, sig_data in background_signals.items():
@@ -240,7 +239,6 @@ with left_p:
     st.markdown(f"#### 📡 Live Technical Radar Terminal: {active_sym} (5m Entry View)")
     if df_active is not None and not df_active.empty and len(df_active) > 20:
         plot_df = df_active.tail(50)
-        
         close_series_active = pd.Series(df_active['Close'].values.flatten(), index=df_active.index)
         p_fast = close_series_active.ewm(span=9, adjust=False).mean().loc[plot_df.index]
         p_slow = close_series_active.ewm(span=21, adjust=False).mean().loc[plot_df.index]
@@ -253,10 +251,10 @@ with left_p:
         fig.update_layout(template="plotly_dark", height=480, xaxis_rangeslider_visible=False, margin=dict(r=10, t=10, b=10, l=10))
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("💡 Selected asset live chart data will plot automatically during market active intervals or once synced.")
+        st.info("💡 Live chart will plot automatically during active trading intervals or once data syncs.")
 
 with right_p:
-    st.markdown("#### 🎯 Quad Engine Historical Efficiency")
+    st.markdown("#### 🎯 Engine Historical Efficiency")
     m_cols = st.columns(3)
     
     total_t = st.session_state.win_loss_tracker["Total"]
