@@ -26,7 +26,7 @@ st.markdown(
 )
 
 # High-Speed Quantum Sync Ticker (2-Second Interval)
-refresh_count = st_autorefresh(interval=2000, key="jio_yogi_tri_clock")
+refresh_count = st_autorefresh(interval=2000, key="jio_yogi_perfect_grid_clock")
 
 # 📲 Advanced Telegram Gateway
 def send_telegram_alert(message):
@@ -78,31 +78,35 @@ def compute_ema_trend(df):
     elif fast.iloc[-1] < slow.iloc[-1] and rsi.iloc[-1] < 46: return -1
     return 0
 
-# --- 🚀 AUTOMATED BACKGROUND SCANNER ---
+# --- 🚀 AUTOMATED BACKGROUND SCANNER WITH ROBUST GRID SYSTEM ---
 st.markdown("### 🔍 Live Multi-Asset Confluence Tracker (Option & Futures Engine)")
-status_cols = st.columns(len(ASSET_UNIVERSE))
+
+# 🛠️ Fixed Grid Fix: Dividing 7 assets into 2 clean distinct rows (4 columns and 3 columns)
+row1_items = list(ASSET_UNIVERSE.items())[:4]
+row2_items = list(ASSET_UNIVERSE.items())[4:]
+
+row1_cols = st.columns(4)
+row2_cols = st.columns(3)
 
 background_signals = {}
 
-for idx, (name, symbol) in enumerate(ASSET_UNIVERSE.items()):
+def process_asset(name, symbol, ui_col):
     is_nse = symbol in ["^NSEI", "^NSEBANK"]
-    
     try:
         p_5m = "5d" if is_nse else "1d"
         p_longer = "5d" if is_nse else "3d"
         
-        # Optimized: 3 Timeframes (5m, 15m, 1h) to completely fix the Render server load issue
         df_5m = clean_df(yf.download(tickers=symbol, period=p_5m, interval="5m", progress=False))
         df_15m = clean_df(yf.download(tickers=symbol, period=p_longer, interval="15m", progress=False))
         df_1h = clean_df(yf.download(tickers=symbol, period="1mo" if is_nse else "5d", interval="1h", progress=False))
         
         if df_5m is None or df_5m.empty:
-            status_cols[idx].markdown(
-                f"<div style='background-color:#334155; padding:10px; border-radius:6px; text-align:center; color:#94a3b8; font-size:12px; font-weight:bold; border: 1px solid #475569;'>"
-                f"{name.split(' ')[0]}<br><span style='font-size:11px;'>Offline / Closed</span>"
+            ui_col.markdown(
+                f"<div style='background-color:#334155; padding:12px; border-radius:6px; text-align:center; color:#94a3b8; font-size:13px; font-weight:bold; border: 1px solid #475569;'>"
+                f"{name}<br><span style='font-size:11px;'>Closed / Synced</span>"
                 f"</div>", unsafe_allow_html=True
             )
-            continue
+            return
             
         t5 = compute_ema_trend(df_5m)
         t15 = compute_ema_trend(df_15m)
@@ -125,20 +129,27 @@ for idx, (name, symbol) in enumerate(ASSET_UNIVERSE.items()):
         elif votes_short >= 2:
             sig_type = "👑 ULTRA SHORT (3/3)" if votes_short == 3 else "🔥 HIGH PROB SHORT (2/3)"
             status_ui = "💥 SELL CONFIRM" if votes_short == 3 else "📉 SELL ACCEL"
-            bg_color = "#b91c1c" if votes_short == 3 else "#991b1b"
+            bg_color = "#b91c1c" if votes_short == 4 else "#991b1b"
             background_signals[symbol] = {"type": sig_type, "price": c_price, "df": df_5m, "score": f"{votes_short}/3"}
             
-        status_cols[idx].markdown(
-            f"<div style='background-color:{bg_color}; padding:10px; border-radius:6px; text-align:center; color:white; font-size:12px; font-weight:bold; border: 1px solid #38bdf8;'>"
-            f"{name.split(' ')[0]}<br><span style='font-size:11px;'>{status_ui}</span>"
+        ui_col.markdown(
+            f"<div style='background-color:{bg_color}; padding:12px; border-radius:6px; text-align:center; color:white; font-size:13px; font-weight:bold; border: 1px solid #38bdf8;'>"
+            f"{name}<br><span style='font-size:12px;'>{status_ui}</span>"
             f"</div>", unsafe_allow_html=True
         )
         
-        if status_cols[idx].button("📡 Open Desk", key=f"view_{symbol}", use_container_width=True):
+        if ui_col.button("📡 Open Desk", key=f"view_{symbol}", use_container_width=True):
             st.session_state.active_asset = symbol
             
-    except Exception as e:
-        status_cols[idx].error("Sync Lag")
+    except Exception:
+        ui_col.error(f"Sync Lag: {name.split(' ')[0]}")
+
+# Execute Layout Rendering
+for i, (name, symbol) in enumerate(row1_items):
+    process_asset(name, symbol, row1_cols[i])
+
+for i, (name, symbol) in enumerate(row2_items):
+    process_asset(name, symbol, row2_cols[i])
 
 # --- 📢 SYSTEM TELEGRAM BROADCAST WITH OPTIONS AND FUTURES INTELLIGENCE ---
 for sym, sig_data in background_signals.items():
@@ -230,6 +241,7 @@ for sym, sig_data in background_signals.items():
         st.session_state.last_broadcasted_signal[sym] = sig_data["type"]
 
 # --- 📊 CENTRAL RADAR VIEW TERMINAL ---
+st.markdown("---")
 active_sym = st.session_state.active_asset
 df_active = clean_df(yf.download(tickers=active_sym, period="5d", interval="5m", progress=False))
 
